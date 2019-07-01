@@ -30,7 +30,7 @@ class TasNet(nn.Module):
         # input encoder
         self.encoder = nn.Conv1d(1, self.enc_dim, self.win, bias=False, stride=self.stride)
         
-        # TCN encoder
+        # TCN separator
         self.TCN = models.TCN(self.enc_dim, self.enc_dim*self.num_spk, self.feature_dim, self.feature_dim*4,
                               self.layer, self.stack, self.kernel, causal=self.causal)
 
