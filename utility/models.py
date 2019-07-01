@@ -142,15 +142,15 @@ class DepthConv1d(nn.Module):
         self.causal = causal
         self.skip = skip
         
-        self.linear = nn.Conv1d(input_channel, hidden_channel, 1)
+        self.conv1d = nn.Conv1d(input_channel, hidden_channel, 1)
         if self.causal:
             self.padding = (kernel - 1) * dilation
         else:
             self.padding = padding
-        self.conv1d = nn.Conv1d(hidden_channel, hidden_channel, kernel, dilation=dilation,
+        self.dconv1d = nn.Conv1d(hidden_channel, hidden_channel, kernel, dilation=dilation,
           groups=hidden_channel,
           padding=self.padding)
-        self.BN_out = nn.Conv1d(hidden_channel, input_channel, 1)
+        self.res_out = nn.Conv1d(hidden_channel, input_channel, 1)
         self.nonlinearity1 = nn.PReLU()
         self.nonlinearity2 = nn.PReLU()
         if self.causal:
@@ -161,25 +161,24 @@ class DepthConv1d(nn.Module):
             self.reg2 = nn.GroupNorm(1, hidden_channel, eps=1e-08)
         
         if self.skip:
-            self.BN_skip = nn.Conv1d(hidden_channel, input_channel, 1)
+            self.skip_out = nn.Conv1d(hidden_channel, input_channel, 1)
 
     def forward(self, input):
-        output = self.reg1(self.nonlinearity1(self.linear(input)))
+        output = self.reg1(self.nonlinearity1(self.conv1d(input)))
         if self.causal:
-            output = self.reg2(self.nonlinearity2(self.conv1d(output)[:,:,:-self.padding]))
+            output = self.reg2(self.nonlinearity2(self.dconv1d(output)[:,:,:-self.padding]))
         else:
-            output = self.reg2(self.nonlinearity2(self.conv1d(output)))
-        residual = self.BN_out(output)
+            output = self.reg2(self.nonlinearity2(self.dconv1d(output)))
+        residual = self.res_out(output)
         if self.skip:
-            skip = self.BN_skip(output)
+            skip = self.skip_out(output)
             return residual, skip
         else:
             return residual
         
 class TCN(nn.Module):
-    def __init__(self, input_dim, output_dim, 
-                 layer, stack, TCN_ch, 
-                 kernel=3, skip=True, 
+    def __init__(self, input_dim, output_dim, BN_dim, hidden_dim,
+                 layer, stack, kernel=3, skip=True, 
                  causal=False, dilated=True):
         super(TCN, self).__init__()
         
@@ -190,6 +189,8 @@ class TCN(nn.Module):
             self.LN = nn.GroupNorm(1, input_dim, eps=1e-8)
         else:
             self.LN = cLN(input_dim, eps=1e-8)
+
+        self.BN = nn.Conv1d(input_dim, BN_dim, 1)
         
         # TCN for feature extraction
         self.receptive_field = 0
@@ -199,9 +200,9 @@ class TCN(nn.Module):
         for s in range(stack):
             for i in range(layer):
                 if self.dilated:
-                    self.TCN.append(DepthConv1d(input_dim, TCN_ch, kernel, dilation=2**i, padding=2**i, skip=skip, causal=causal)) 
+                    self.TCN.append(DepthConv1d(BN_dim, hidden_dim, kernel, dilation=2**i, padding=2**i, skip=skip, causal=causal)) 
                 else:
-                    self.TCN.append(DepthConv1d(input_dim, TCN_ch, kernel, dilation=1, padding=1, skip=skip, causal=causal))   
+                    self.TCN.append(DepthConv1d(BN_dim, hidden_dim, kernel, dilation=1, padding=1, skip=skip, causal=causal))   
                 if i == 0 and s == 0:
                     self.receptive_field += kernel
                 else:
@@ -215,7 +216,7 @@ class TCN(nn.Module):
         # output layer
         
         self.output = nn.Sequential(nn.PReLU(),
-                                    nn.Conv1d(input_dim, output_dim, 1)
+                                    nn.Conv1d(BN_dim, output_dim, 1)
                                    )
         
         self.skip = skip
@@ -225,7 +226,7 @@ class TCN(nn.Module):
         # input shape: (B, N, L)
         
         # normalization
-        output = self.LN(input)
+        output = self.BN(self.LN(input))
         
         # pass to TCN
         if self.skip:
