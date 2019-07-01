@@ -6,8 +6,7 @@ from torch.autograd import Variable
 from .utility import models, sdr
 
 
-# single-channel TasNet as DAE
-
+# Conv-TasNet
 class TasNet(nn.Module):
     def __init__(self, enc_dim=512, feature_dim=128, sr=16000, win=2, layer=8, stack=3, 
                  kernel=3, num_spk=2, causal=False):
