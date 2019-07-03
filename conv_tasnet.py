@@ -37,7 +37,7 @@ class TasNet(nn.Module):
         self.receptive_field = self.TCN.receptive_field
         
         # output decoder
-        self.decoder = nn.ConvTranspose1d(self.enc_dim, 1, self.win, stride=self.stride)
+        self.decoder = nn.ConvTranspose1d(self.enc_dim, 1, self.win, bias=False, stride=self.stride)
 
     def pad_signal(self, input):
 
