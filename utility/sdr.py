@@ -140,19 +140,17 @@ def batch_SDR_torch(estimation, origin, mask=None):
     
     # choose the best permutation
     SDR_max = []
-    for i in range(batch_size):
-        SDR_perm = []
-        for permute in perm:
-            sdr = []
-            for idx in range(len(permute)):
-                sdr.append(SDR[i][idx][permute[idx]].view(1,-1))
-            sdr = torch.sum(torch.cat(sdr, 0))
-            SDR_perm.append(sdr.view(1,-1))
-        SDR_perm = torch.cat(SDR_perm, 0)
-        sdr_max = torch.max(SDR_perm) / nsource
-        SDR_max.append(sdr_max.view(1,-1))
+    SDR_perm = []
+    for permute in perm:
+        sdr = []
+        for idx in range(len(permute)):
+            sdr.append(SDR[:,idx,permute[idx]].view(batch_size,-1))
+        sdr = torch.sum(torch.cat(sdr, 1), 1)
+        SDR_perm.append(sdr.view(batch_size, 1))
+    SDR_perm = torch.cat(SDR_perm, 1)
+    SDR_max, _ = torch.max(SDR_perm, dim=1)
     
-    return torch.cat(SDR_max, 0)
+    return SDR_max / nsource
 
 
 def compute_measures(se,s,j):
